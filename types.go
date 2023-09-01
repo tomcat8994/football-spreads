@@ -1,5 +1,7 @@
 package main
 
+type EventType string
+
 type Output struct {
 	Date      string
 	Shortname string
@@ -34,4 +36,5 @@ type Event struct {
 	Items []struct {
 		Ref string `json:"$ref"`
 	} `json:"items"`
+	EventType EventType
 }

@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	NFL       = "nfl"
+	CFB       = "cfb"
 	nflEvents = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events"
 	cfbEvents = "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/events"
 
@@ -20,137 +22,37 @@ const (
 
 func main() {
 
-	var NflEvent, CfbEvent Event
-
-	resp, err := http.Get(nflEvents)
+	nflEvent, err := fetchAndDecodeEvent(nflEvents)
 	if err != nil {
-		log.Fatal("Err with NFL Event GET request: ", err)
+		log.Fatal("Error fetching NFL event:", err)
 	}
-	defer resp.Body.Close()
 
-	err = json.NewDecoder(resp.Body).Decode(&NflEvent)
+	cfbEvent, err := fetchAndDecodeEvent(cfbEvents)
 	if err != nil {
-		log.Fatal("Err unmarshalling: ", err)
+		log.Fatal("Error fetching CFB event:", err)
 	}
 
-	cfgResp, err := http.Get(cfbEvents)
-	if err != nil {
-		log.Fatal("Err With CFB Event GET Request: ", err)
-	}
-	defer cfgResp.Body.Close()
+	nflEvent.EventType = NFL
+	cfbEvent.EventType = CFB
 
-	err = json.NewDecoder(cfgResp.Body).Decode(&CfbEvent)
-	if err != nil {
-		log.Fatal("Err decoding CfbEvent: ", err)
-	}
+	nflGames := fetchGames(nflEvent)
+	cfbGames := fetchGames(cfbEvent)
 
-	var nflGameLinks, cfbGameLinks []string
+	nflOutput := ProcessGame(nflGames)
+	cfbOutput := ProcessGame(cfbGames)
 
-	for _, v := range NflEvent.Items {
-		nflGameLinks = append(nflGameLinks, v.Ref)
-	}
-
-	for _, v := range CfbEvent.Items {
-		cfbGameLinks = append(cfbGameLinks, v.Ref)
-	}
-
-	var ngames, cgames []GameInfo
-
-	for k, link := range nflGameLinks {
-		resp, err := http.Get(link)
-		if err != nil || resp.StatusCode != 200 {
-			fmt.Println("Err grabbing link ", k)
-			continue
-		}
-		var game GameInfo
-		err = json.NewDecoder(resp.Body).Decode(&game)
-		if err != nil {
-			log.Fatal("Err decoding game: ", err)
-		}
-		sl := fmt.Sprintf("http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/%s/competitions/%s/odds?lang=en&region=us", game.ID, game.ID)
-		game.StatLink = sl
-		ngames = append(ngames, game)
-		resp.Body.Close()
-	}
-
-	for k, link := range cfbGameLinks {
-		resp, err := http.Get(link)
-		if err != nil || resp.StatusCode != 200 {
-			fmt.Println("Err grabbing cfb link (index): ", k)
-			continue
-		}
-		var cgame GameInfo
-		err = json.NewDecoder(resp.Body).Decode(&cgame)
-		if err != nil {
-			log.Fatal("Err decoding cgame: ", err)
-		}
-		sl := fmt.Sprintf("http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/events/%s/competitions/%s/odds?lang=en&region=us", cgame.ID, cgame.ID)
-		cgame.StatLink = sl
-		cgames = append(cgames, cgame)
-		resp.Body.Close()
-	}
-
-	var nflOutput, cfbOutput []Output
-
-	for _, v := range ngames {
-		var st Stats
-		resp1, err := http.Get(v.StatLink)
-		if err != nil {
-			log.Fatal("err getting spread link: ", err)
-		}
-		err = json.NewDecoder(resp1.Body).Decode(&st)
-		if err != nil {
-			log.Fatal("Err decoding game: ", err)
-		}
-		var out Output
-
-		out.Date = FormatTime(v.Date)
-		out.Shortname = v.ShortName
-		out.Spread = st.Items[0].Details
-
-		nflOutput = append(nflOutput, out)
-	}
-
-	for _, v := range cgames {
-		var st Stats
-		resp2, err := http.Get(v.StatLink)
-		if err != nil {
-			log.Fatal("error getting spread link for cfb: ", err)
-		}
-		err = json.NewDecoder(resp2.Body).Decode(&st)
-		if err != nil {
-			log.Fatal("Err decoding college game: ", err)
-		}
-		var out Output
-		if len(st.Items) == 0 {
-			continue
-		}
-
-		out.Date = FormatTime(v.Date)
-		out.Shortname = v.ShortName
-		out.Spread = st.Items[0].Details
-		out.Name = v.Name
-
-		cfbOutput = append(cfbOutput, out)
-
-	}
-
-	// Get the user home directory
 	userHomeDir, _ := os.UserHomeDir()
 
-	// Create a path to the desired file
-	filePath := filepath.Join(userHomeDir, "Desktop", "NFL-Week-"+NflEvent.Meta.Parameters.Week[0]+".txt")
+	filePath := filepath.Join(userHomeDir, "Desktop", "NFL-Week-"+nflEvent.Meta.Parameters.Week[0]+".txt")
 
-	// Create the file
 	f, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// Write some data to the file
-	f.WriteString(fmt.Sprintf("NFL Week %v\n", NflEvent.Meta.Parameters.Week[0]))
-	fmt.Printf("NFL Week %v\n", NflEvent.Meta.Parameters.Week[0])
+	f.WriteString(fmt.Sprintf("NFL Week %v\n", nflEvent.Meta.Parameters.Week[0]))
+	fmt.Printf("NFL Week %v\n", nflEvent.Meta.Parameters.Week[0])
 
 	f.WriteString("-------------------\n")
 	fmt.Println("-------------------")
@@ -172,8 +74,8 @@ func main() {
 	}
 	fmt.Println("-----------------")
 	f.WriteString("-----------------\n")
-	fmt.Printf("College Week %v  \n", CfbEvent.Meta.Parameters.Week[0])
-	f.WriteString(fmt.Sprintf("College Week %v  \n", CfbEvent.Meta.Parameters.Week[0]))
+	fmt.Printf("College Week %v  \n", cfbEvent.Meta.Parameters.Week[0])
+	f.WriteString(fmt.Sprintf("College Week %v  \n", cfbEvent.Meta.Parameters.Week[0]))
 	fmt.Println("-----------------")
 	f.WriteString("-----------------\n")
 	fmt.Println()
@@ -197,9 +99,97 @@ func FormatTime(s string) string {
 
 	a, err := time.Parse(layout, s)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("failed to parse time:", err)
 	}
 	loc, _ := time.LoadLocation("America/New_York")
 	b := a.In(loc).Format("Monday, Jan-02-06 3:04PM")
 	return b
+}
+
+func fetchAndDecodeEvent(url string) (Event, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Event{}, err
+	}
+	defer resp.Body.Close()
+
+	var event Event
+	err = json.NewDecoder(resp.Body).Decode(&event)
+	if err != nil {
+		return Event{}, err
+	}
+
+	return event, nil
+}
+
+func fetchGames(event Event) []GameInfo {
+	var games []GameInfo
+
+	for _, item := range event.Items {
+		resp, err := http.Get(item.Ref)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			log.Fatal("Error fetching game link:", err)
+		}
+		defer resp.Body.Close()
+
+		var game GameInfo
+		err = json.NewDecoder(resp.Body).Decode(&game)
+		if err != nil {
+			log.Fatal("Error decoding game:", err)
+		}
+
+		var sl string
+		if event.EventType == NFL {
+			sl = fmt.Sprintf("http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/%s/competitions/%s/odds?lang=en&region=us", game.ID, game.ID)
+		} else if event.EventType == CFB {
+			sl = fmt.Sprintf("http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/events/%s/competitions/%s/odds?lang=en&region=us", game.ID, game.ID)
+		}
+
+		game.StatLink = sl
+
+		games = append(games, game)
+	}
+
+	return games
+}
+
+func fetchGameStats(statURL string) (Stats, error) {
+	resp, err := http.Get(statURL)
+	if err != nil {
+		fmt.Println("Can't find statURL: ", statURL)
+		return Stats{}, fmt.Errorf("error fetching statURL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var stats Stats
+	err = json.NewDecoder(resp.Body).Decode(&stats)
+	if err != nil {
+		return Stats{}, fmt.Errorf("error decoding statURL: %w", err)
+	}
+
+	return stats, nil
+}
+
+func ProcessGame(games []GameInfo) []Output {
+	var output []Output
+	for _, game := range games {
+		stats, err := fetchGameStats(game.StatLink)
+		if err != nil {
+			log.Fatal("Failed to fetch game stats: ", err)
+		}
+
+		if len(stats.Items) == 0 {
+			fmt.Println("stat contains empty item. Continuing...")
+			fmt.Println("statLink:", game.StatLink)
+			continue
+		}
+		out := Output{
+			Date:      FormatTime(game.Date),
+			Shortname: game.ShortName,
+			Spread:    stats.Items[0].Details,
+			Name:      game.Name,
+		}
+		output = append(output, out)
+	}
+	return output
 }
