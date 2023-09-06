@@ -14,7 +14,7 @@ const (
 	NFL       = "nfl"
 	CFB       = "cfb"
 	nflEvents = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events"
-	cfbEvents = "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/events"
+	cfbEvents = "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/events?groups=80&limit=500"
 
 	// Use this link if trying to get a specific week:
 	// "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2022/types/2/weeks/6/events"
@@ -80,7 +80,8 @@ func main() {
 	f.WriteString("-----------------\n")
 	fmt.Println()
 	f.WriteString("\n")
-	for _, v := range cfbOutput {
+	for k, v := range cfbOutput {
+		fmt.Println("Game ", k)
 		fmt.Println(v.Date)
 		f.WriteString(v.Date + "\n")
 		fmt.Println(v.Shortname)
@@ -179,9 +180,9 @@ func ProcessGame(games []GameInfo) []Output {
 		}
 
 		if len(stats.Items) == 0 {
-			fmt.Println("stat contains empty item. Continuing...")
-			fmt.Println("statLink:", game.StatLink)
+			fmt.Println("No spread given. Skipping ", game.ShortName)
 			continue
+
 		}
 		out := Output{
 			Date:      FormatTime(game.Date),
@@ -189,6 +190,7 @@ func ProcessGame(games []GameInfo) []Output {
 			Spread:    stats.Items[0].Details,
 			Name:      game.Name,
 		}
+
 		output = append(output, out)
 	}
 	return output
