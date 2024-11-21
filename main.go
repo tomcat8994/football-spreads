@@ -42,12 +42,16 @@ func main() {
 	cfbOutput := ProcessGame(cfbGames)
 
 	fileName := "NFL-Week-" + nflEvent.Meta.Parameters.Week[0] + ".txt"
-	userHomeDir, _ := os.UserHomeDir()
-	filePath := filepath.Join(userHomeDir, "Documents", fileName)
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting current directory:", err)
+		return
+	}
+	filePath := filepath.Join(dir, fileName)
 
 	f, err := os.Create(filePath)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("failed to create file:", err)
 		return
 	}
 
