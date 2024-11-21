@@ -43,14 +43,7 @@ func main() {
 
 	fileName := "NFL-Week-" + nflEvent.Meta.Parameters.Week[0] + ".txt"
 	userHomeDir, _ := os.UserHomeDir()
-	cDriveDesktop := "C:\\Desktop"
-	var filePath string
-	// On Windows, check if the Desktop is directly under the C drive
-	if _, err := os.Stat(cDriveDesktop); err == nil {
-		filePath = filepath.Join(cDriveDesktop, fileName)
-	} else {
-		filePath = filepath.Join(userHomeDir, "Desktop", fileName)
-	}
+	filePath := filepath.Join(userHomeDir, "Documents", fileName)
 
 	f, err := os.Create(filePath)
 	if err != nil {
